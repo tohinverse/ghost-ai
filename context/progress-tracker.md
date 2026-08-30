@@ -4,11 +4,11 @@ Update this file whenever the current phase, active feature, or implementation s
 
 ## Current Phase
 
-- Authentication (`context/feature-specs/03-auth.md`)
+- Project dialogs and editor home (`context/feature-specs/04-project-dialogs.md`)
 
 ## Current Goal
 
-- Define the next implementation unit (see Next Up).
+- Build the `/editor` home screen, the Create/Rename/Delete project dialogs, and sidebar project item actions — UI only, mock data, no API calls or persistence.
 
 ## Completed
 
@@ -17,17 +17,19 @@ Update this file whenever the current phase, active feature, or implementation s
 - Authentication (`context/feature-specs/03-auth.md`): `@clerk/ui` installed; `ClerkProvider` wraps the root layout in `app/layout.tsx` using Clerk's `dark` theme from `@clerk/ui/themes`, with `appearance.variables` mapped onto the app's CSS custom properties (`var(--bg-surface)`, `var(--accent-primary)`, `var(--text-primary)`, etc.) — no hardcoded colors. `proxy.ts` at the project root uses `clerkMiddleware` + `createRouteMatcher` to protect every route by default, with only the sign-in/sign-up paths (read from the env vars) public. Sign-in and sign-up live at catch-all routes `app/sign-in/[[...sign-in]]` and `app/sign-up/[[...sign-up]]`, sharing `components/auth/auth-layout.tsx` (two-panel on `lg`, form-only below; compact text logo, tagline, text-only feature list; no gradients, hero, or cards). `app/page.tsx` is now a server component that redirects to `/editor` when authenticated and `/sign-in` when not. Clerk's `UserButton` sits in the editor navbar's right section with default menu/profile flows untouched.
 - Wired the navbar and sidebar into a reusable `components/editor/editor-shell.tsx` (owns sidebar open/close state, `"use client"`) rendered from a new `app/editor/page.tsx` route with a `Canvas coming soon` placeholder. Route naming/auth were not specified anywhere yet, so `/editor` is a placeholder location, not a final routing decision — revisit once project/auth routing is defined.
 
+- Project dialogs and editor home (`context/feature-specs/04-project-dialogs.md`): `/editor` now renders `components/editor/editor-home.tsx` — centered heading, description, and a `New Project` button with a `Plus` icon, no cards. `components/projects/` holds the three dialogs (`create-project-dialog.tsx` with a live slug preview from `lib/slug.ts`, `rename-project-dialog.tsx` with a prefilled auto-focused input, the current name in the description, and Enter-to-submit, and `delete-project-dialog.tsx` as a destructive confirmation with no input). `hooks/use-project-dialogs.ts` owns dialog, form, and loading state; `components/editor/project-dialogs-provider.tsx` exposes `openCreate`/`openRename`/`openDelete` via context and renders all three dialogs once inside `editor-shell.tsx`. `components/editor/project-list-item.tsx` adds per-project rename/delete actions in a shadcn `DropdownMenu`, rendered only when `project.isOwner` — shared/collaborator projects show no actions. The sidebar lists mock projects from `lib/mock-projects.ts` and gained a mobile-only backdrop scrim (`md:hidden`) that closes it on outside tap. `dropdown-menu` and `label` were added via the shadcn CLI. No API calls or persistence — `submit()` only drives the loading state and closes the dialog.
+
 ## In Progress
 
 - None.
 
 ## Next Up
 
-- Add the next planned feature unit here.
+- Wire the project dialogs to real persistence: Prisma schema for projects/collaborators, `app/api` route handlers with auth + ownership checks, and replacement of the mock project data with real queries.
 
 ## Open Questions
 
-- `components/ui/dialog.tsx` uses `rounded-xl` for `DialogContent`, but `ui-context.md` specifies `rounded-3xl` for modal/overlay surfaces. Left untouched since it's a protected shadcn foundation component and no task has explicitly required the edit yet — revisit when the first real dialog is built.
+- ~~`components/ui/dialog.tsx` uses `rounded-xl` for `DialogContent` vs the `rounded-3xl` that `ui-context.md` specifies for modals.~~ Resolved in the project-dialogs phase: each dialog passes `rounded-3xl` (and `rounded-b-3xl` on the footer) as a `className` at the call site, so the protected shadcn component stays unmodified.
 - `03-auth.md` says to "define public routes using the existing sign-in and sign-up env vars" but `.env.local` only had `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` and `CLERK_SECRET_KEY` — no sign-in/sign-up URL vars existed yet. Resolved by adding Clerk's own standard variable names, `NEXT_PUBLIC_CLERK_SIGN_IN_URL=/sign-in` and `NEXT_PUBLIC_CLERK_SIGN_UP_URL=/sign-up`, to `.env.local`, since those are the canonical Clerk env var names (not invented) and `/sign-in` / `/sign-up` are the routes the spec itself defines. Revisit if this assumption is wrong.
 - `/editor` remains a placeholder route from the editor-chrome phase; now protected by `proxy.ts` as a non-public route, but its final path (e.g. project-scoped like `/projects/[id]`) is still not defined by any spec.
 
@@ -40,7 +42,13 @@ Update this file whenever the current phase, active feature, or implementation s
 - Clerk appearance is configured once on `ClerkProvider` in the root layout rather than per-component, so every Clerk surface (auth pages, `UserButton`, profile flows) inherits the same tokens. Clerk's `Variables` are typed as plain strings, so `var(--token)` values pass through and resolve at runtime.
 - Route protection is deny-by-default in `proxy.ts`: everything not matched by the sign-in/sign-up matcher requires `auth.protect()`. New public routes must be added to that matcher explicitly.
 
+- Project dialog state is shared through `ProjectDialogsProvider` (React context) rather than passed down as props from `EditorShell`. `app/editor/page.tsx` stays a server component, and a server component cannot pass a function child or callback props across the RSC boundary, so context is what lets server-rendered page content trigger a dialog the client shell owns. Any client component under the shell can call `useProjectDialogActions()`.
+- `Project.isOwner` is the single flag gating item actions in the sidebar. Rename/delete render only for owned projects; the shared tab reuses the same `ProjectListItem` and simply gets no action menu. Replace this flag with the real owner/collaborator check once projects come from Prisma.
+- `DialogContent` is given `rounded-3xl` (and `DialogFooter` `rounded-b-3xl`) at the call site in each dialog, instead of editing `components/ui/dialog.tsx`. This satisfies `ui-context.md`'s modal radius while leaving the protected shadcn foundation component untouched — resolves the open question from the editor-chrome phase.
+- `DropdownMenuContent` from the shadcn base-nova registry sets `w-(--anchor-width)`, which sizes the menu to its trigger. Since the trigger here is a 28px icon button, the project actions menu passes `className="w-auto"` to override it. Expect the same override wherever a dropdown hangs off an icon button.
+
 ## Session Notes
+- Project dialogs verified in a headless Chrome pass against the dev server. `/editor` is auth-protected and a Clerk session still could not be minted, so verification ran through a temporary public route (`app/dialogs-check-tmp`, plus a temporary entry in the `proxy.ts` public matcher — both reverted afterwards) rendering the sidebar and editor home inside the real provider. Confirmed: 3 action buttons on the My Projects tab and 0 on Shared; `My Cool Project!!` previews as `/my-cool-project`; the rename input is prefilled with `Payments Platform`, is `document.activeElement` on open, shows `Currently named Payments Platform.` in the description, and closes on Enter; the delete dialog contains 0 inputs; on a 390px viewport tapping right of the sidebar closes it. No console errors. `npm run build` and `eslint` pass.
 
 - Auth verification (headless Chromium, dev server): signed-out `/` redirects to `/sign-in`, signed-out `/editor` redirects to `/sign-in` with a `redirect_url` param, and `/sign-in` + `/sign-up` load publicly with no console errors. Screenshots confirmed the two-panel layout, Geist Sans, and the cyan `--accent-primary` on Clerk's primary button. At 390px the left panel is correctly hidden (form only). `npm run build` and `eslint` both pass.
 - The signed-in path (`/` → `/editor`, `UserButton` rendering in the navbar) has NOT been verified in a browser: Clerk's dev instance puts a Cloudflare bot check on sign-up, and minting a session via the Clerk backend API was blocked by tooling permissions. Worth a manual sign-in pass to confirm.
