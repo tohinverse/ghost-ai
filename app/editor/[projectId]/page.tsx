@@ -1,8 +1,10 @@
-import { notFound, redirect } from "next/navigation"
+import { redirect } from "next/navigation"
 
-import { EditorShell } from "@/components/editor/editor-shell"
-import { getCurrentUserEmail, getCurrentUserId } from "@/lib/auth"
+import { AccessDenied } from "@/components/editor/access-denied"
+import { CanvasPlaceholder } from "@/components/editor/canvas-placeholder"
+import { WorkspaceShell } from "@/components/editor/workspace-shell"
 import { toProjects } from "@/lib/project-mapper"
+import { getCurrentIdentity, hasProjectAccess } from "@/lib/project-access"
 import {
   findProjectById,
   listProjectsForCollaborator,
@@ -11,49 +13,42 @@ import {
 } from "@/lib/projects"
 
 /**
- * The project workspace. The canvas itself lands in a later unit — this route
- * exists so the create flow has a destination and the sidebar has a target.
+ * The project workspace. The route param is both the project ID and the
+ * Liveblocks room ID — they are the same value by construction. Access is
+ * resolved server-side before anything renders; the canvas itself lands in a
+ * later unit.
  */
 export default async function ProjectWorkspacePage(
   props: PageProps<"/editor/[projectId]">
 ) {
-  const userId = await getCurrentUserId()
+  const identity = await getCurrentIdentity()
 
-  if (!userId) {
+  if (!identity.userId) {
     redirect("/sign-in")
   }
 
   const { projectId } = await props.params
-  const email = await getCurrentUserEmail()
+  const project = await findProjectById(projectId)
 
-  const [project, owned, shared] = await Promise.all([
-    findProjectById(projectId),
-    listProjectsForOwner(userId),
-    email ? listProjectsForCollaborator(email) : Promise.resolve([]),
+  // A missing project and an unauthorized one render the same denial.
+  if (!project || !(await hasProjectAccess(project, identity))) {
+    return <AccessDenied />
+  }
+
+  const [owned, shared] = await Promise.all([
+    listProjectsForOwner(identity.userId),
+    identity.email
+      ? listProjectsForCollaborator(identity.email)
+      : Promise.resolve([]),
   ])
 
-  if (!project) {
-    notFound()
-  }
-
-  const isMember =
-    project.ownerId === userId ||
-    shared.some((candidate) => candidate.id === project.id)
-
-  if (!isMember) {
-    notFound()
-  }
-
   return (
-    <EditorShell
+    <WorkspaceShell
+      projectName={project.name}
       ownedProjects={toProjects(owned.map(serializeProject), true)}
       sharedProjects={toProjects(shared.map(serializeProject), false)}
     >
-      <div className="flex h-full flex-col items-center justify-center gap-2 px-6 text-center">
-        <h1 className="text-xl font-medium text-copy-primary">{project.name}</h1>
-        <p className="font-mono text-xs text-copy-muted">/{project.id}</p>
-        <p className="text-sm text-copy-muted">Canvas coming soon</p>
-      </div>
-    </EditorShell>
+      <CanvasPlaceholder projectName={project.name} />
+    </WorkspaceShell>
   )
 }
