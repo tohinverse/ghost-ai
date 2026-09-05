@@ -15,6 +15,7 @@ interface DeleteProjectDialogProps {
   isOpen: boolean
   project: Project | null
   isSubmitting: boolean
+  error: string | null
   onClose: () => void
   onConfirm: () => void
 }
@@ -23,6 +24,7 @@ export function DeleteProjectDialog({
   isOpen,
   project,
   isSubmitting,
+  error,
   onClose,
   onConfirm,
 }: DeleteProjectDialogProps) {
@@ -36,6 +38,8 @@ export function DeleteProjectDialog({
             permanently deleted. This cannot be undone.
           </DialogDescription>
         </DialogHeader>
+
+        {error && <p className="text-sm text-destructive">{error}</p>}
 
         <DialogFooter className="rounded-b-3xl">
           <Button variant="outline" onClick={onClose} disabled={isSubmitting}>

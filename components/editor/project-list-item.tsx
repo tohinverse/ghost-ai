@@ -1,5 +1,6 @@
 "use client"
 
+import Link from "next/link"
 import { MoreHorizontal, Pencil, Trash2 } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
@@ -24,12 +25,12 @@ export function ProjectListItem({
 }: ProjectListItemProps) {
   return (
     <div className="group flex items-center gap-1 rounded-xl px-2 py-1.5 hover:bg-bg-elevated">
-      <div className="min-w-0 flex-1">
+      <Link href={`/editor/${project.id}`} className="min-w-0 flex-1">
         <p className="truncate text-sm text-copy-primary">{project.name}</p>
         <p className="truncate font-mono text-xs text-copy-muted">
           /{project.slug}
         </p>
-      </div>
+      </Link>
 
       {/* Rename and delete are owner-only; shared projects show no actions. */}
       {project.isOwner && (

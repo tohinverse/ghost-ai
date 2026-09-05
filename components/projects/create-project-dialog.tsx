@@ -11,12 +11,14 @@ import {
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { slugify } from "@/lib/slug"
 
 interface CreateProjectDialogProps {
   isOpen: boolean
   name: string
+  /** The ID the project will be created with, previewed as the user types. */
+  roomId: string
   isSubmitting: boolean
+  error: string | null
   onNameChange: (name: string) => void
   onClose: () => void
   onSubmit: () => void
@@ -25,13 +27,13 @@ interface CreateProjectDialogProps {
 export function CreateProjectDialog({
   isOpen,
   name,
+  roomId,
   isSubmitting,
+  error,
   onNameChange,
   onClose,
   onSubmit,
 }: CreateProjectDialogProps) {
-  const slug = slugify(name)
-
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
       <DialogContent className="rounded-3xl">
@@ -60,9 +62,11 @@ export function CreateProjectDialog({
               disabled={isSubmitting}
             />
             <p className="font-mono text-xs text-copy-muted">
-              {slug ? `/${slug}` : "Slug preview appears as you type"}
+              {name.trim() ? `/${roomId}` : "Room ID preview appears as you type"}
             </p>
           </div>
+
+          {error && <p className="text-sm text-destructive">{error}</p>}
 
           <DialogFooter className="rounded-b-3xl">
             <Button

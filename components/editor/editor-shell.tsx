@@ -5,8 +5,20 @@ import { useState } from "react"
 import { EditorNavbar } from "@/components/editor/editor-navbar"
 import { ProjectDialogsProvider } from "@/components/editor/project-dialogs-provider"
 import { ProjectSidebar } from "@/components/editor/project-sidebar"
+import type { Project } from "@/types/project"
 
-export function EditorShell({ children }: { children: React.ReactNode }) {
+interface EditorShellProps {
+  children: React.ReactNode
+  /** Fetched server-side and passed down; the sidebar never fetches on load. */
+  ownedProjects: Project[]
+  sharedProjects: Project[]
+}
+
+export function EditorShell({
+  children,
+  ownedProjects,
+  sharedProjects,
+}: EditorShellProps) {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false)
 
   return (
@@ -19,6 +31,8 @@ export function EditorShell({ children }: { children: React.ReactNode }) {
         <ProjectSidebar
           isOpen={isSidebarOpen}
           onClose={() => setIsSidebarOpen(false)}
+          ownedProjects={ownedProjects}
+          sharedProjects={sharedProjects}
         />
         <main className="flex-1 overflow-hidden">{children}</main>
       </div>

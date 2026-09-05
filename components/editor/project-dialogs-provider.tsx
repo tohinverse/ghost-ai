@@ -5,7 +5,7 @@ import { createContext, useContext } from "react"
 import { CreateProjectDialog } from "@/components/projects/create-project-dialog"
 import { DeleteProjectDialog } from "@/components/projects/delete-project-dialog"
 import { RenameProjectDialog } from "@/components/projects/rename-project-dialog"
-import { useProjectDialogs } from "@/hooks/use-project-dialogs"
+import { useProjectActions } from "@/hooks/use-project-actions"
 import type { Project } from "@/types/project"
 
 interface ProjectDialogsContextValue {
@@ -37,41 +37,45 @@ export function ProjectDialogsProvider({
 }: {
   children: React.ReactNode
 }) {
-  const dialogs = useProjectDialogs()
+  const actions = useProjectActions()
 
   return (
     <ProjectDialogsContext.Provider
       value={{
-        openCreate: dialogs.openCreate,
-        openRename: dialogs.openRename,
-        openDelete: dialogs.openDelete,
+        openCreate: actions.openCreate,
+        openRename: actions.openRename,
+        openDelete: actions.openDelete,
       }}
     >
       {children}
 
       <CreateProjectDialog
-        isOpen={dialogs.openDialog === "create"}
-        name={dialogs.name}
-        isSubmitting={dialogs.isSubmitting}
-        onNameChange={dialogs.setName}
-        onClose={dialogs.closeDialog}
-        onSubmit={dialogs.submit}
+        isOpen={actions.openDialog === "create"}
+        name={actions.name}
+        roomId={actions.roomId}
+        isSubmitting={actions.isSubmitting}
+        error={actions.error}
+        onNameChange={actions.setName}
+        onClose={actions.closeDialog}
+        onSubmit={actions.submit}
       />
       <RenameProjectDialog
-        isOpen={dialogs.openDialog === "rename"}
-        project={dialogs.activeProject}
-        name={dialogs.name}
-        isSubmitting={dialogs.isSubmitting}
-        onNameChange={dialogs.setName}
-        onClose={dialogs.closeDialog}
-        onSubmit={dialogs.submit}
+        isOpen={actions.openDialog === "rename"}
+        project={actions.activeProject}
+        name={actions.name}
+        isSubmitting={actions.isSubmitting}
+        error={actions.error}
+        onNameChange={actions.setName}
+        onClose={actions.closeDialog}
+        onSubmit={actions.submit}
       />
       <DeleteProjectDialog
-        isOpen={dialogs.openDialog === "delete"}
-        project={dialogs.activeProject}
-        isSubmitting={dialogs.isSubmitting}
-        onClose={dialogs.closeDialog}
-        onConfirm={dialogs.submit}
+        isOpen={actions.openDialog === "delete"}
+        project={actions.activeProject}
+        isSubmitting={actions.isSubmitting}
+        error={actions.error}
+        onClose={actions.closeDialog}
+        onConfirm={actions.submit}
       />
     </ProjectDialogsContext.Provider>
   )

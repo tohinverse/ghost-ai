@@ -39,14 +39,30 @@ export function listProjectsForOwner(ownerId: string): Promise<Project[]> {
   })
 }
 
+/**
+ * Projects shared with the caller. `ProjectCollaborator` is keyed by email, so
+ * membership resolves through the caller's address rather than their user ID.
+ */
+export function listProjectsForCollaborator(email: string): Promise<Project[]> {
+  return prisma.project.findMany({
+    where: { collaborators: { some: { email } } },
+    orderBy: { createdAt: "desc" },
+  })
+}
+
 export function createProject(input: {
+  /**
+   * Supplied by the client so the project ID doubles as the Liveblocks room
+   * ID. Omitted, it falls back to the schema's `@default(cuid())`.
+   */
+  id?: string
   ownerId: string
   name: string
   description: string | null
 }): Promise<Project> {
   return prisma.project.create({
-    // `id` is left to the schema's `@default(cuid())` strategy.
     data: {
+      ...(input.id ? { id: input.id } : {}),
       ownerId: input.ownerId,
       name: input.name,
       description: input.description,
@@ -67,4 +83,18 @@ export function renameProject(projectId: string, name: string): Promise<Project>
 
 export async function deleteProject(projectId: string): Promise<void> {
   await prisma.project.delete({ where: { id: projectId } })
+}
+
+/**
+ * Narrows an unknown thrown value to Prisma's unique-constraint failure (P2002)
+ * without importing the error class, which differs between the Accelerate and
+ * driver-adapter client builds.
+ */
+export function isUniqueConstraintError(error: unknown): boolean {
+  return (
+    typeof error === "object" &&
+    error !== null &&
+    "code" in error &&
+    (error as { code: unknown }).code === "P2002"
+  )
 }

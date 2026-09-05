@@ -24,3 +24,5 @@ export const forbidden = (): NextResponse<ApiErrorBody> => jsonError("Forbidden"
 export const notFound = (): NextResponse<ApiErrorBody> => jsonError("Not found", 404)
 
 export const badRequest = (message: string): NextResponse<ApiErrorBody> => jsonError(message, 400)
+
+export const conflict = (message: string): NextResponse<ApiErrorBody> => jsonError(message, 409)

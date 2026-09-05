@@ -6,15 +6,22 @@ import { ProjectListItem } from "@/components/editor/project-list-item"
 import { useProjectDialogActions } from "@/components/editor/project-dialogs-provider"
 import { Button } from "@/components/ui/button"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { MOCK_OWNED_PROJECTS, MOCK_SHARED_PROJECTS } from "@/lib/mock-projects"
 import { cn } from "@/lib/utils"
+import type { Project } from "@/types/project"
 
 interface ProjectSidebarProps {
   isOpen: boolean
   onClose: () => void
+  ownedProjects: Project[]
+  sharedProjects: Project[]
 }
 
-export function ProjectSidebar({ isOpen, onClose }: ProjectSidebarProps) {
+export function ProjectSidebar({
+  isOpen,
+  onClose,
+  ownedProjects,
+  sharedProjects,
+}: ProjectSidebarProps) {
   const { openCreate, openRename, openDelete } = useProjectDialogActions()
 
   return (
@@ -61,9 +68,9 @@ export function ProjectSidebar({ isOpen, onClose }: ProjectSidebarProps) {
           </TabsList>
 
           <TabsContent value="my-projects" className="flex-1 overflow-y-auto">
-            {MOCK_OWNED_PROJECTS.length > 0 ? (
+            {ownedProjects.length > 0 ? (
               <div className="flex flex-col gap-0.5 py-2">
-                {MOCK_OWNED_PROJECTS.map((project) => (
+                {ownedProjects.map((project) => (
                   <ProjectListItem
                     key={project.id}
                     project={project}
@@ -80,9 +87,9 @@ export function ProjectSidebar({ isOpen, onClose }: ProjectSidebarProps) {
           </TabsContent>
 
           <TabsContent value="shared" className="flex-1 overflow-y-auto">
-            {MOCK_SHARED_PROJECTS.length > 0 ? (
+            {sharedProjects.length > 0 ? (
               <div className="flex flex-col gap-0.5 py-2">
-                {MOCK_SHARED_PROJECTS.map((project) => (
+                {sharedProjects.map((project) => (
                   <ProjectListItem
                     key={project.id}
                     project={project}

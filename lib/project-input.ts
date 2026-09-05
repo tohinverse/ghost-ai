@@ -2,10 +2,18 @@ import { DEFAULT_PROJECT_NAME } from "@/lib/projects"
 
 export const PROJECT_NAME_MAX_LENGTH = 100
 export const PROJECT_DESCRIPTION_MAX_LENGTH = 500
+export const PROJECT_ID_MAX_LENGTH = 120
+
+/**
+ * A project ID doubles as the Liveblocks room ID and as a URL segment, so it is
+ * restricted to the same lowercase slug charset the client generates.
+ */
+const PROJECT_ID_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/
 
 export type ParseResult<T> = { ok: true; value: T } | { ok: false; error: string }
 
 export interface CreateProjectInput {
+  id?: string
   name: string
   description: string | null
 }
@@ -75,7 +83,30 @@ export function parseCreateProjectInput(
     }
   }
 
-  return { ok: true, value: { name, description } }
+  const rawId = body.id
+  let id: string | undefined
+
+  // Optional: omitted, the schema's `@default(cuid())` assigns the ID instead.
+  if (rawId !== undefined && rawId !== null) {
+    if (typeof rawId !== "string") {
+      return { ok: false, error: "Project id must be a string" }
+    }
+
+    id = rawId.trim()
+
+    if (!PROJECT_ID_PATTERN.test(id)) {
+      return {
+        ok: false,
+        error: "Project id must contain only lowercase letters, numbers, and hyphens",
+      }
+    }
+
+    if (id.length > PROJECT_ID_MAX_LENGTH) {
+      return { ok: false, error: `Project id must be ${PROJECT_ID_MAX_LENGTH} characters or fewer` }
+    }
+  }
+
+  return { ok: true, value: { id, name, description } }
 }
 
 export function parseRenameProjectInput(
