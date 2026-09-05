@@ -12,13 +12,21 @@ if (!databaseUrl) {
 /**
  * Prisma Postgres connection strings are served through Accelerate; every other
  * Postgres URL is reached directly through the node-postgres driver adapter.
+ *
+ * Both branches are wrapped in `withAccelerate()` so they share one client
+ * type. Without it the two branches return structurally different clients, and
+ * TypeScript cannot call a model method whose overloads differ across a union.
+ * The extension only adds opt-in `cacheStrategy` support, so it is inert on the
+ * direct-adapter branch.
  */
 function createPrismaClient(url: string) {
   if (url.startsWith("prisma+postgres://")) {
     return new PrismaClient({ accelerateUrl: url }).$extends(withAccelerate())
   }
 
-  return new PrismaClient({ adapter: new PrismaPg({ connectionString: url }) })
+  return new PrismaClient({ adapter: new PrismaPg({ connectionString: url }) }).$extends(
+    withAccelerate()
+  )
 }
 
 type PrismaClientInstance = ReturnType<typeof createPrismaClient>

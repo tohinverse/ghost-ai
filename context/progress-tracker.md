@@ -4,11 +4,11 @@ Update this file whenever the current phase, active feature, or implementation s
 
 ## Current Phase
 
-- Prisma data layer (`context/feature-specs/05-prisma.md`)
+- Project APIs (`context/feature-specs/06-project-apis.md`)
 
 ## Current Goal
 
-- Add the `Project` and `ProjectCollaborator` models, the cached Prisma client singleton, and the first migration. Schema and client only — no API routes or UI wiring.
+- Backend project REST routes only: list/create/rename/delete with Clerk-derived ownership and correct `401`/`403` handling. No UI wiring.
 
 ## Completed
 
@@ -21,18 +21,22 @@ Update this file whenever the current phase, active feature, or implementation s
 
 - Prisma data layer (`context/feature-specs/05-prisma.md`): `prisma/models/project.prisma` adds `Project` (`ownerId` mapped to the Clerk user ID, `name`, optional `description`, `ProjectStatus` enum of `DRAFT`/`ARCHIVED` defaulting to `DRAFT`, nullable `canvasJsonPath` for the future Vercel Blob reference, `createdAt`/`updatedAt`, indexes on `ownerId` and `createdAt`) and `ProjectCollaborator` (cascade-deleting `project` relation, `email`, `createdAt`, `@@unique([projectId, email])`, indexes on `email` and `[projectId, createdAt]`). `lib/prisma.ts` exports one cached client, branching on `DATABASE_URL`: `prisma+postgres://` uses `accelerateUrl` + `withAccelerate()`, anything else uses `@prisma/adapter-pg`; the instance is cached on `globalThis` outside production for hot reloads. Migration `20260905045833_init_projects` created both tables, the enum, all four indexes, the unique constraint, and the `ON DELETE CASCADE` foreign key, and is applied to the database.
 
+- Project APIs (`context/feature-specs/06-project-apis.md`): `app/api/projects/route.ts` (`GET` list, `POST` create) and `app/api/projects/[projectId]/route.ts` (`PATCH` rename, `DELETE`) are backed by four new `lib/` modules, keeping the handlers thin per `code-standards.md`. `lib/auth.ts` exposes `getCurrentUserId()` as the single auth boundary; `lib/api-response.ts` holds the shared `jsonOk`/`unauthorized`/`forbidden`/`notFound`/`badRequest` helpers so every route returns the same `{ error }` shape; `lib/project-input.ts` narrows the `unknown` from `request.json()` before any query runs (missing/blank create name falls back to `Untitled Project`, rename rejects a blank name with `400`, name capped at 100 chars and description at 500); `lib/projects.ts` owns the Prisma queries and the `ProjectResponse` serializer that converts dates to ISO strings. `ownerId` always comes from the Clerk session — an `ownerId` in the request body is ignored. IDs use the schema's existing `@default(cuid())`; no sequential IDs were added. Mutations load the project first, answering `404` when it does not exist and `403` when `ownerId` does not match the caller. `POST` returns `201`; `DELETE` returns `{ id, deleted: true }`. Backend only — no UI was wired.
+
 ## In Progress
 
 - None.
 
 ## Next Up
 
-- Wire the project dialogs to real persistence: `app/api` route handlers with auth + ownership checks, and replacement of `lib/mock-projects.ts` with real Prisma queries.
+- Wire the UI to the new routes: replace `lib/mock-projects.ts` with real fetches, and connect `hooks/use-project-dialogs.ts` `submit()` to `POST`/`PATCH`/`DELETE`. The API shape (`ProjectResponse`) is not the sidebar's `types/project.ts` `Project` shape — it has no `slug` and no `isOwner` — so that mapping is the first decision of the UI phase.
+- Collaborator access: `GET /api/projects` currently lists owned projects only, so the sidebar's "Shared" tab has no backing endpoint yet.
 
 ## Open Questions
 
 - ~~`components/ui/dialog.tsx` uses `rounded-xl` for `DialogContent` vs the `rounded-3xl` that `ui-context.md` specifies for modals.~~ Resolved in the project-dialogs phase: each dialog passes `rounded-3xl` (and `rounded-b-3xl` on the footer) as a `className` at the call site, so the protected shadcn component stays unmodified.
 - `03-auth.md` says to "define public routes using the existing sign-in and sign-up env vars" but `.env.local` only had `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` and `CLERK_SECRET_KEY` — no sign-in/sign-up URL vars existed yet. Resolved by adding Clerk's own standard variable names, `NEXT_PUBLIC_CLERK_SIGN_IN_URL=/sign-in` and `NEXT_PUBLIC_CLERK_SIGN_UP_URL=/sign-up`, to `.env.local`, since those are the canonical Clerk env var names (not invented) and `/sign-in` / `/sign-up` are the routes the spec itself defines. Revisit if this assumption is wrong.
+- `GET /api/projects` returns only projects the caller owns. `architecture-context.md` says "only the owner or a collaborator can mutate project resources", and `ProjectCollaborator` exists in the schema, but `06-project-apis.md` specifies owner-only rules and says nothing about collaborator reads — so collaborators are not yet included anywhere in these routes. Confirm whether the list endpoint should return shared projects (and whether collaborators may rename) before the sidebar's "Shared" tab is wired.
 - `/editor` remains a placeholder route from the editor-chrome phase; now protected by `proxy.ts` as a non-public route, but its final path (e.g. project-scoped like `/projects/[id]`) is still not defined by any spec.
 
 ## Architecture Decisions
@@ -54,7 +58,14 @@ Update this file whenever the current phase, active feature, or implementation s
 - `lib/prisma.ts` picks its connection strategy at runtime from the `DATABASE_URL` scheme rather than from a separate env flag, so the same code runs against a direct Postgres URL locally and a Prisma Postgres/Accelerate URL in deployment. The two branches produce different client types (the Accelerate branch is `$extends`ed), so the exported type is derived as `ReturnType<typeof createPrismaClient>` instead of being written as `PrismaClient`. `@prisma/extension-accelerate` had to be installed — the spec listed the other Prisma packages as already present but not this one, which the Accelerate branch requires.
 - `Project.ownerId` stores the Clerk user ID as a plain `String`; there is no local `User` table, so Clerk remains the single source of identity. Collaborators are keyed by email rather than user ID, so an invite can exist before that person has signed up.
 
+- API routes are excluded from `proxy.ts`'s blanket `auth.protect()` and enforce auth inside their own handlers instead. Clerk's `protect()` only redirects to sign-in for *page* requests (it sniffs `Sec-Fetch-Dest`/`Accept: text/html`); for a `fetch()` to `/api/*` it calls `notFound()`, which would have answered `404` where the spec requires `401`. Page routes are still deny-by-default; `/api/(.*)` is matched separately and skipped, and every API handler starts with a `getCurrentUserId()` check. Any new API route must do its own auth check — the proxy no longer covers it.
+- Route handlers use the Next.js 16 `RouteContext<'/api/projects/[projectId]'>` global helper and `await ctx.params`, since `params` is a Promise in this version. `RouteContext` is only emitted by `next dev`/`next build`/`next typegen`, so a bare `npx tsc --noEmit` on a clean checkout fails until types are generated.
+- Mutations distinguish "missing" from "not yours": the project is loaded first, so an unknown ID returns `404` and a real project owned by someone else returns `403`. This intentionally reveals that a project ID exists to a non-owner, which is what the spec's `403` requirement asks for.
+- `lib/prisma.ts` now applies `$extends(withAccelerate())` to *both* connection branches. Previously only the Accelerate branch was extended, making the exported type a union of two structurally different clients — TypeScript then refused to call `findMany`/`findUnique` ("no signatures compatible with each other") because Accelerate overloads reads with `cacheStrategy`. The extension is inert without an Accelerate URL, so extending both is the fix that keeps one callable client type. This surfaced only now because the Prisma phase never called a model method from typechecked app code.
+
 ## Session Notes
+
+- Project API routes verified against the live database by importing the real route handlers and aliasing only `@/lib/auth` to a stub (temporary `tsconfig` + script, all removed after the run) — a real Clerk session could not be minted because outbound calls to `api.clerk.com` are blocked in this environment, the same limit hit during the auth phase. 27 checks passed: `401` on all four routes when signed out; `POST` with an empty body returns `201` named `Untitled Project`; an `ownerId` in the request body is ignored in favor of the session user; `GET` returns only the caller's projects, newest first; `400` for a blank rename and for malformed JSON; `404` for an unknown project ID; `403` for both non-owner rename and non-owner delete, with the row confirmed unchanged and still present afterwards; owner rename and delete return `200` and persist. All test rows were deleted — the tables are empty. Separately, unauthenticated `curl`s against `next dev` confirmed all four routes answer a JSON `401` (this is what caught the `proxy.ts` `404` problem). `npx tsc --noEmit`, `npm run build`, and `npm run lint` all pass.
 - Prisma data layer verified against the live database with a temporary script (removed after the run): creating a `Project` defaults `status` to `DRAFT` and `canvasJsonPath` to `null`, a collaborator loads through the `collaborators` relation, deleting the project cascades the collaborator away (0 orphans left), and importing `lib/prisma` twice yields the same instance. Test rows were deleted; the tables are empty. `npx prisma validate`, `npx tsc --noEmit`, `npm run build`, and `npm run lint` all pass.
 
 - Project dialogs verified in a headless Chrome pass against the dev server. `/editor` is auth-protected and a Clerk session still could not be minted, so verification ran through a temporary public route (`app/dialogs-check-tmp`, plus a temporary entry in the `proxy.ts` public matcher — both reverted afterwards) rendering the sidebar and editor home inside the real provider. Confirmed: 3 action buttons on the My Projects tab and 0 on Shared; `My Cool Project!!` previews as `/my-cool-project`; the rename input is prefilled with `Payments Platform`, is `document.activeElement` on open, shows `Currently named Payments Platform.` in the description, and closes on Enter; the delete dialog contains 0 inputs; on a 390px viewport tapping right of the sidebar closes it. No console errors. `npm run build` and `eslint` pass.
