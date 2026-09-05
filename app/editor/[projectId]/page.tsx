@@ -44,6 +44,7 @@ export default async function ProjectWorkspacePage(
 
   return (
     <WorkspaceShell
+      projectId={project.id}
       projectName={project.name}
       ownedProjects={toProjects(owned.map(serializeProject), true)}
       sharedProjects={toProjects(shared.map(serializeProject), false)}

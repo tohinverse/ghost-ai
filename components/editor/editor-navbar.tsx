@@ -22,6 +22,7 @@ interface EditorNavbarProps {
    */
   isAiSidebarOpen?: boolean
   onToggleAiSidebar?: () => void
+  onShare?: () => void
 }
 
 export function EditorNavbar({
@@ -30,6 +31,7 @@ export function EditorNavbar({
   projectName,
   isAiSidebarOpen,
   onToggleAiSidebar,
+  onShare,
 }: EditorNavbarProps) {
   return (
     <nav className="flex h-14 shrink-0 items-center justify-between border-b border-surface-border bg-bg-surface px-3">
@@ -59,8 +61,7 @@ export function EditorNavbar({
       <div className="flex flex-1 items-center justify-end gap-2">
         {onToggleAiSidebar && (
           <>
-            {/* Sharing behavior lands with the invite flow; the control is chrome for now. */}
-            <Button variant="ghost" size="sm" disabled>
+            <Button variant="ghost" size="sm" onClick={onShare}>
               <Share2 data-icon="inline-start" className="size-4" />
               Share
             </Button>

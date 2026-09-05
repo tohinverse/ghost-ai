@@ -6,11 +6,13 @@ import { AiSidebar } from "@/components/editor/ai-sidebar"
 import { EditorNavbar } from "@/components/editor/editor-navbar"
 import { ProjectDialogsProvider } from "@/components/editor/project-dialogs-provider"
 import { ProjectSidebar } from "@/components/editor/project-sidebar"
+import { ShareProjectDialog } from "@/components/projects/share-project-dialog"
 import type { Project } from "@/types/project"
 
 interface WorkspaceShellProps {
   children: React.ReactNode
-  /** The open project, used for the navbar title and the sidebar highlight. */
+  /** The open project. Its ID is what the share dialog invites against. */
+  projectId: string
   projectName: string
   ownedProjects: Project[]
   sharedProjects: Project[]
@@ -24,12 +26,14 @@ interface WorkspaceShellProps {
  */
 export function WorkspaceShell({
   children,
+  projectId,
   projectName,
   ownedProjects,
   sharedProjects,
 }: WorkspaceShellProps) {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false)
   const [isAiSidebarOpen, setIsAiSidebarOpen] = useState(false)
+  const [isShareOpen, setIsShareOpen] = useState(false)
 
   return (
     <ProjectDialogsProvider>
@@ -40,6 +44,7 @@ export function WorkspaceShell({
           projectName={projectName}
           isAiSidebarOpen={isAiSidebarOpen}
           onToggleAiSidebar={() => setIsAiSidebarOpen((open) => !open)}
+          onShare={() => setIsShareOpen(true)}
         />
 
         <ProjectSidebar
@@ -53,6 +58,13 @@ export function WorkspaceShell({
           <main className="flex-1 overflow-hidden">{children}</main>
           {isAiSidebarOpen && <AiSidebar />}
         </div>
+
+        <ShareProjectDialog
+          isOpen={isShareOpen}
+          projectId={projectId}
+          projectName={projectName}
+          onClose={() => setIsShareOpen(false)}
+        />
       </div>
     </ProjectDialogsProvider>
   )
